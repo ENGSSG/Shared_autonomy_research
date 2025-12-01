@@ -1,21 +1,21 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
-import matplotlib.pyplot as pyplot
-from .bycycle_model import BicycleModel
+import matplotlib.pyplot as plt
+from bicycle_model import BicycleModel
 
-class SharedAutonomyEnc(gym.Env):
+class SharedAutonomyEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array'], 'render_fps': 100}
 
     def __init__(self):
-        super(SharedAutonomyEnv, self).__init()
+        super(SharedAutonomyEnv, self).__init__()
 
         self.physics = BicycleModel(dt=0.01) # 100Hz physics update
         # Action Space: [steering (-1 to 1), throttle (-1 to 1)]
         # map these to physical limits in the step function
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
 
-        #Observation Space : [x, y, heading, velocity, lane_offset, target_dist]
+        # Observation Space : [x, y, heading, velocity, lane_offset, target_dist]
         # Using a large box for coordinates, limited for others
         low = np.array([-np.inf, -np.inf, -np.pi, -5.0, -10.0, -np.inf])
         high = np.array([np.inf, np.inf, np.pi, 20, 10.0, np.inf])
@@ -61,7 +61,7 @@ class SharedAutonomyEnc(gym.Env):
         truncated = False
 
         # Collision/Out of bounds check (Lane width approx 4, -> +/- 2m)
-        if abs(self.state[1]) > 3.0:
+        if abs(self.state[1]) > 2.0:
             terminated = True
             reward -= 100.0 # Crash Penalty
 
@@ -76,20 +76,36 @@ class SharedAutonomyEnc(gym.Env):
         return np.array([x, y, psi, v, lane_offset, target_dist], dtype=np.float32)
 
     def render(self):
-        if self.fig is None:
-            plt.ion()
-            self.fig, self.ax = plot.subplots()
-            self.ax.set_xlim(-10,100)
-            self.ax.set_ylim(-10,10)
-            self.ax.set_aspect('equal')
-            self.vehicle_plot, = self.ax.plot([], [], 'bo', markersize=10)
-            self.lane_lines = [
-                self.ax.axhline(y=2, color='k', linestyle='--'),
+            if self.fig is None:
+                plt.ion()
+                self.fig, self.ax = plt.subplots()
+                self.ax.set_aspect('equal')
+                
+                # Setup the car (blue dot)
+                self.vehicle_plot, = self.ax.plot([], [], 'bo', markersize=10, zorder=5)
+                
+                # # Setup the road boundaries (Red lines)
+                # self.ax.axhline(y=20, color='r', linewidth=2)
+                # self.ax.axhline(y=-20, color='r', linewidth=2)
+                
+                # Setup the lanes (Dashed black lines)
+                self.ax.axhline(y=2, color='k', linestyle='--')
                 self.ax.axhline(y=-2, color='k', linestyle='--')
-            ]
-            self.vehicle_plot.set_data([self.state[0]], [self.state[1]])
-            self.ax.set_xlim(self.state[0] - 10, self.state[0] + 20)
+                
+                # Setup static vertical markers every 10 meters (Green lines) to show movement
+                # for i in range(0, 1000, 20):
+                #     self.ax.axvline(x=i, color='g', linestyle=':', alpha=0.5)
 
+                # Turn on the grid
+                self.ax.grid(True)
+
+            # Update Car Position
+            self.vehicle_plot.set_data([self.state[0]], [self.state[1]])
+            
+            # Camera Follows Car (Keep this, but now the grid will move)
+            self.ax.set_xlim(self.state[0] - 10, self.state[0] + 50)
+            self.ax.set_ylim(-25, 25)
+            
             plt.draw()
             plt.pause(0.001)
 
